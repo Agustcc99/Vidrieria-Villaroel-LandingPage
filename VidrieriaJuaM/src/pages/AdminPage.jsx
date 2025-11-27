@@ -1,9 +1,17 @@
 // src/pages/AdminPage.jsx
 // -------------------------------------------------
-// Panel de administrador para ver los contactos
-// - Pide token de admin
-// - Lista los envíos del formulario
-// - Permite cambiar el estado: pendiente / contestado / terminado
+// Panel de administrador para ver los contactos.
+//
+// Funcionalidades:
+//  - Pide un token de administrador (por defecto: admin123)
+//  - Trae la lista de envíos del formulario desde el backend
+//  - Muestra los datos en una tabla
+//  - Permite cambiar el estado de cada contacto:
+//      pendiente / contestado / terminado
+//
+// Se apoya en el endpoint:
+//   GET    /api/admin/submissions
+//   PATCH  /api/admin/submissions/:id
 // -------------------------------------------------
 
 import { useEffect, useState } from 'react'
@@ -23,10 +31,10 @@ function AdminPage() {
   // Mensaje de error (si algo falla)
   const [errorMsg, setErrorMsg] = useState('')
 
-  // Fecha/hora del último fetch correcto
+  // Fecha/hora del último fetch correcto (para mostrar feedback)
   const [lastFetch, setLastFetch] = useState(null)
 
-  // ID de la fila que se está actualizando (para deshabilitar solo esa)
+  // ID de la fila que se está actualizando (para deshabilitar solo esa fila)
   const [updatingId, setUpdatingId] = useState(null)
 
   // -------------------------------------------------
@@ -34,12 +42,13 @@ function AdminPage() {
   // -------------------------------------------------
   const fetchData = async () => {
     setStatus('loading')
+
     try {
       console.log('Consultando admin API:', ADMIN_API)
 
       const res = await fetch(ADMIN_API, {
         headers: {
-          Authorization: `Bearer ${token}`, // Enviamos el token admin
+          Authorization: `Bearer ${token}`, // Enviamos el token admin en el header
         },
       })
 
@@ -64,7 +73,7 @@ function AdminPage() {
   }
 
   // -------------------------------------------------
-  // Cuando cambia el token, intentamos cargar los datos
+  // Cuando cambia el token y no está vacío, intentamos cargar los datos
   // -------------------------------------------------
   useEffect(() => {
     if (token) {
@@ -74,19 +83,19 @@ function AdminPage() {
   }, [token])
 
   // -------------------------------------------------
-  // Función para devolver la clase de color según el estado
-  // Esto solo afecta el color visual del <select>
+  // Devuelve clases de color para el <select> según el estado
+  // Esto solo afecta la estética, no la lógica.
   // -------------------------------------------------
   const getEstadoColorClass = (estado = 'pendiente') => {
     switch (estado) {
       case 'pendiente':
-        return 'bg-warning text-dark'     // Amarillo
+        return 'bg-warning text-dark' // Amarillo
       case 'contestado':
-        return 'bg-info text-dark'        // Celeste
+        return 'bg-info text-dark' // Celeste
       case 'terminado':
-        return 'bg-success text-white'    // Verde
+        return 'bg-success text-white' // Verde
       default:
-        return 'bg-secondary text-white'  // Gris por si acaso
+        return 'bg-secondary text-white' // Gris fallback
     }
   }
 
@@ -113,7 +122,7 @@ function AdminPage() {
 
       const data = await res.json()
 
-      // Reemplazamos el item actualizado dentro del array
+      // Reemplazamos el item actualizado dentro del array (inmutable)
       setItems((prev) =>
         prev.map((item) => (item.id === id ? data.item : item)),
       )
@@ -145,6 +154,7 @@ function AdminPage() {
                   </small>
                 </div>
 
+                {/* Input de token + botones de acción */}
                 <div className="d-flex gap-2">
                   {/* Input para el token admin */}
                   <input
@@ -157,7 +167,7 @@ function AdminPage() {
                   />
 
                   <div className="d-flex gap-2">
-                    {/* Botón para forzar login / carga */}
+                    {/* Botón para cargar datos */}
                     <button
                       className="btn btn-primary"
                       onClick={fetchData}
@@ -201,7 +211,7 @@ function AdminPage() {
                       <th>Email</th>
                       <th>Medidas</th>
                       <th>Recibido</th>
-                      <th>Estado</th> {/* Nueva columna */}
+                      <th>Estado</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -233,7 +243,7 @@ function AdminPage() {
                             </span>
                           </td>
                           <td>
-                            {/* Select para cambiar el estado */}
+                            {/* Select para cambiar el estado del contacto */}
                             <select
                               className={`form-select form-select-sm ${colorClass}`}
                               value={estadoActual}
@@ -258,7 +268,8 @@ function AdminPage() {
 
               {/* Mensaje final informativo */}
               <div className="alert alert-info mb-0">
-                <code>ADMIN_TOKEN</code> en el servidor.
+                Tip: podés configurar tu propio token en el servidor usando la
+                variable de entorno <code>ADMIN_TOKEN</code>.
               </div>
             </div>
           </div>
