@@ -1,282 +1,383 @@
 // src/pages/AdminPage.jsx
-// -------------------------------------------------
-// Panel de administrador para ver los contactos.
+// ------------------------------------------------------
+// Página de administración de Vidrios Villarroel.
 //
-// Funcionalidades:
-//  - Pide un token de administrador (por defecto: admin123)
-//  - Trae la lista de envíos del formulario desde el backend
-//  - Muestra los datos en una tabla
-//  - Permite cambiar el estado de cada contacto:
-//      pendiente / contestado / terminado
+// ✅ Hace todo en un solo componente:
+//   - Intenta cargar /api/admin/submissions al montar.
+//   - Si el backend responde 401 -> muestra formulario de LOGIN.
+//   - Si responde 200 -> muestra TABLA de contactos.
+//   - Permite cambiar estado (PATCH) y hacer logout.
 //
-// Se apoya en el endpoint:
-//   GET    /api/admin/submissions
-//   PATCH  /api/admin/submissions/:id
-// -------------------------------------------------
+// Usa el backend:
+//   - POST http://localhost:4000/api/auth/login
+//   - POST http://localhost:4000/api/auth/logout
+//   - GET  http://localhost:4000/api/admin/submissions
+//   - PATCH http://localhost:4000/api/admin/submissions/:id
+// ------------------------------------------------------
 
-import { useEffect, useState } from 'react'
-import { ADMIN_API } from '../config/api'
-import '../App.css'
+import { useEffect, useState } from "react";
 
-function AdminPage() {
-  // Token que el admin escribe en el input (por defecto admin123)
-  const [token, setToken] = useState('admin123')
+const API_BASE = "http://localhost:4000";
 
-  // Lista de contactos traídos desde el backend
-  const [items, setItems] = useState([])
+// Estados posibles del contacto (incluyendo nuevos)
+const ESTADOS = [
+  "pendiente",
+  "contestado",
+  "terminado",
+  "especial",
+  "proceso",
+];
 
-  // Estado general de la pantalla: idle | loading | success | error
-  const [status, setStatus] = useState('idle')
+// Colores asociados a cada estado
+const ESTADO_COLORES = {
+  pendiente: { background: "#FFD93D", color: "#000" },   // amarillo
+  contestado: { background: "#4CAF50", color: "#fff" },  // verde
+  terminado: { background: "#E74C3C", color: "#fff" },   // rojo
+  especial: { background: "#9B59B6", color: "#fff" },    // violeta
+  proceso: { background: "#3498DB", color: "#fff" },     // azul
+};
 
-  // Mensaje de error (si algo falla)
-  const [errorMsg, setErrorMsg] = useState('')
+// ------------------------------------------------------
+// Formulario de login de administrador
+// ------------------------------------------------------
+function AdminLoginForm({ onLoginSuccess, errorGlobal }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [cargando, setCargando] = useState(false);
+  const [error, setError] = useState("");
 
-  // Fecha/hora del último fetch correcto (para mostrar feedback)
-  const [lastFetch, setLastFetch] = useState(null)
-
-  // ID de la fila que se está actualizando (para deshabilitar solo esa fila)
-  const [updatingId, setUpdatingId] = useState(null)
-
-  // -------------------------------------------------
-  // Helper para traer todos los contactos del backend
-  // -------------------------------------------------
-  const fetchData = async () => {
-    setStatus('loading')
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    setCargando(true);
 
     try {
-      console.log('Consultando admin API:', ADMIN_API)
-
-      const res = await fetch(ADMIN_API, {
+      const resp = await fetch(`${API_BASE}/api/auth/login`, {
+        method: "POST",
         headers: {
-          Authorization: `Bearer ${token}`, // Enviamos el token admin en el header
+          "Content-Type": "application/json",
         },
-      })
+        credentials: "include", // 👈 muy importante para que se guarde la cookie
+        body: JSON.stringify({ email, password }),
+      });
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data.error || 'No autorizado')
+      if (!resp.ok) {
+        const dataError = await resp.json().catch(() => ({}));
+        throw new Error(dataError.error || "Error al iniciar sesión");
       }
 
-      const data = await res.json()
+      const data = await resp.json();
 
-      // Guardamos la lista de items en el estado
-      setItems(data.items || [])
-      setStatus('success')
-      setErrorMsg('')
-      setLastFetch(new Date().toISOString())
-    } catch (e) {
-      setStatus('error')
-      setItems([])
-      setErrorMsg(e.message || 'No autorizado')
-      console.error('Error cargando admin:', e)
-    }
-  }
-
-  // -------------------------------------------------
-  // Cuando cambia el token y no está vacío, intentamos cargar los datos
-  // -------------------------------------------------
-  useEffect(() => {
-    if (token) {
-      fetchData()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token])
-
-  // -------------------------------------------------
-  // Devuelve clases de color para el <select> según el estado
-  // Esto solo afecta la estética, no la lógica.
-  // -------------------------------------------------
-  const getEstadoColorClass = (estado = 'pendiente') => {
-    switch (estado) {
-      case 'pendiente':
-        return 'bg-warning text-dark' // Amarillo
-      case 'contestado':
-        return 'bg-info text-dark' // Celeste
-      case 'terminado':
-        return 'bg-success text-white' // Verde
-      default:
-        return 'bg-secondary text-white' // Gris fallback
-    }
-  }
-
-  // -------------------------------------------------
-  // Cambiar el estado de un contacto (PATCH al backend)
-  // -------------------------------------------------
-  const handleEstadoChange = async (id, nuevoEstado) => {
-    setUpdatingId(id) // Marcamos qué fila se está actualizando
-
-    try {
-      const res = await fetch(`${ADMIN_API}/${id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ estado: nuevoEstado }),
-      })
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data.error || 'No se pudo actualizar el estado.')
+      if (onLoginSuccess) {
+        onLoginSuccess(data.user);
       }
-
-      const data = await res.json()
-
-      // Reemplazamos el item actualizado dentro del array (inmutable)
-      setItems((prev) =>
-        prev.map((item) => (item.id === id ? data.item : item)),
-      )
-
-      setStatus('success')
-      setErrorMsg('')
-    } catch (e) {
-      console.error('Error actualizando estado:', e)
-      setStatus('error')
-      setErrorMsg(e.message || 'No se pudo actualizar el estado.')
+    } catch (err) {
+      setError(err.message);
     } finally {
-      // Liberamos la marca de "actualizando"
-      setUpdatingId(null)
+      setCargando(false);
     }
-  }
+  };
 
   return (
-    <div className="admin-wrap">
-      <div className="container py-5">
-        <div className="row justify-content-center">
-          <div className="col-lg-10">
-            <div className="admin-card">
-              {/* Header del panel: título + input de token + botones */}
-              <div className="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-                <div>
-                  <h3 className="mb-1">Panel de contactos</h3>
-                  <small className="text-secondary">
-                    Solo administrador · Ver envíos del formulario
-                  </small>
-                </div>
+    <div className="container my-5" style={{ maxWidth: "480px" }}>
+      <h1 className="h3 mb-3 text-center">Panel administrador</h1>
+      <p className="text-muted text-center">
+        Ingresá con tu usuario de administrador para ver los contactos.
+      </p>
 
-                {/* Input de token + botones de acción */}
-                <div className="d-flex gap-2">
-                  {/* Input para el token admin */}
-                  <input
-                    type="password"
-                    placeholder="Token admin"
-                    className="form-control"
-                    style={{ maxWidth: 220 }}
-                    value={token}
-                    onChange={(e) => setToken(e.target.value)}
-                  />
-
-                  <div className="d-flex gap-2">
-                    {/* Botón para cargar datos */}
-                    <button
-                      className="btn btn-primary"
-                      onClick={fetchData}
-                      disabled={!token || status === 'loading'}
-                    >
-                      {status === 'loading' ? 'Cargando...' : 'Ingresar'}
-                    </button>
-
-                    {/* Botón para refrescar datos manualmente */}
-                    <button
-                      className="btn btn-outline-secondary"
-                      type="button"
-                      onClick={fetchData}
-                      disabled={!token || status === 'loading'}
-                    >
-                      Actualizar
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Mensajes de error / éxito */}
-              {status === 'error' && (
-                <div className="alert alert-danger">
-                  {errorMsg || 'No autorizado o sin datos.'}
-                </div>
-              )}
-              {status === 'success' && lastFetch && (
-                <div className="alert alert-success">
-                  Datos actualizados: {new Date(lastFetch).toLocaleTimeString()}
-                </div>
-              )}
-
-              {/* Tabla con los contactos */}
-              <div className="table-responsive">
-                <table className="table align-middle">
-                  <thead>
-                    <tr>
-                      <th>Nombre</th>
-                      <th>Teléfono</th>
-                      <th>Email</th>
-                      <th>Medidas</th>
-                      <th>Recibido</th>
-                      <th>Estado</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {/* Fila vacía si no hay registros */}
-                    {items.length === 0 && (
-                      <tr>
-                        <td colSpan="6" className="text-center text-secondary">
-                          {status === 'loading'
-                            ? 'Cargando...'
-                            : 'Sin registros aún.'}
-                        </td>
-                      </tr>
-                    )}
-
-                    {/* Filas de contactos */}
-                    {items.map((item, idx) => {
-                      const estadoActual = item.estado || 'pendiente'
-                      const colorClass = getEstadoColorClass(estadoActual)
-
-                      return (
-                        <tr key={item.recibidoEn + idx}>
-                          <td className="fw-semibold">{item.nombre}</td>
-                          <td>{item.telefono}</td>
-                          <td>{item.email}</td>
-                          <td>{item.medidas || '-'}</td>
-                          <td>
-                            <span className="badge bg-primary-subtle text-primary badge-pill">
-                              {new Date(item.recibidoEn).toLocaleString()}
-                            </span>
-                          </td>
-                          <td>
-                            {/* Select para cambiar el estado del contacto */}
-                            <select
-                              className={`form-select form-select-sm ${colorClass}`}
-                              value={estadoActual}
-                              disabled={
-                                status === 'loading' || updatingId === item.id
-                              }
-                              onChange={(e) =>
-                                handleEstadoChange(item.id, e.target.value)
-                              }
-                            >
-                              <option value="pendiente">Pendiente</option>
-                              <option value="contestado">Contestado</option>
-                              <option value="terminado">Terminado</option>
-                            </select>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Mensaje final informativo */}
-              <div className="alert alert-info mb-0">
-                Tip: podés configurar tu propio token en el servidor usando la
-                variable de entorno <code>ADMIN_TOKEN</code>.
-              </div>
-            </div>
-          </div>
+      <form
+        onSubmit={handleSubmit}
+        className="border rounded p-4 shadow-sm bg-light"
+      >
+        <div className="mb-3">
+          <label className="form-label">Email administrador</label>
+          <input
+            type="email"
+            className="form-control"
+            placeholder="admin@vidrios.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            autoComplete="username"
+            required
+          />
         </div>
-      </div>
+
+        <div className="mb-3">
+          <label className="form-label">Contraseña</label>
+          <input
+            type="password"
+            className="form-control"
+            placeholder="••••••••"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="current-password"
+            required
+          />
+        </div>
+
+        {(error || errorGlobal) && (
+          <div className="alert alert-danger py-2">
+            {error || errorGlobal}
+          </div>
+        )}
+
+        <button
+          type="submit"
+          className="btn btn-primary w-100"
+          disabled={cargando}
+        >
+          {cargando ? "Ingresando..." : "Ingresar"}
+        </button>
+      </form>
     </div>
-  )
+  );
 }
 
-export default AdminPage
+// ------------------------------------------------------
+// Tabla del panel admin (lista + cambio de estado)
+// ------------------------------------------------------
+function AdminSubmissionsTable({
+  submissions,
+  onCambiarEstado,
+  onLogout,
+  cargando,
+  error,
+  recargar,
+}) {
+  return (
+    <div className="container my-4">
+      <div className="d-flex justify-content-between align-items-center mb-3">
+        <h1 className="h3 mb-0">Panel de contactos</h1>
+
+        <div className="d-flex gap-2">
+          <button
+            className="btn btn-outline-secondary btn-sm"
+            onClick={recargar}
+            disabled={cargando}
+          >
+            {cargando ? "Actualizando..." : "Recargar"}
+          </button>
+          <button
+            className="btn btn-outline-danger btn-sm"
+            onClick={onLogout}
+          >
+            Cerrar sesión
+          </button>
+        </div>
+      </div>
+
+      {error && <div className="alert alert-danger">{error}</div>}
+
+      {cargando && <p>Cargando contactos...</p>}
+
+      {!cargando && submissions.length === 0 && !error && (
+        <p className="text-muted">No hay contactos aún.</p>
+      )}
+
+      {!cargando && submissions.length > 0 && (
+        <div className="table-responsive">
+          <table className="table table-sm table-striped align-middle">
+            <thead>
+              <tr>
+                <th>Nombre</th>
+                <th>Teléfono</th>
+                <th>Email</th>
+                <th>Medidas</th>
+                <th>Estado</th>
+                <th>Recibido</th>
+              </tr>
+            </thead>
+            <tbody>
+              {submissions.map((s) => {
+                const estiloEstado =
+                  ESTADO_COLORES[s.estado] || ESTADO_COLORES["pendiente"];
+
+                return (
+                  <tr key={s._id}>
+                    <td>{s.nombre}</td>
+                    <td>{s.telefono}</td>
+                    <td>{s.email}</td>
+                    <td>{s.medidas || "-"}</td>
+                    <td>
+                      <div className="d-flex align-items-center gap-2">
+                        {/* Badge de color que muestra el estado visualmente */}
+                        <span
+                          className="badge rounded-pill text-capitalize"
+                          style={estiloEstado}
+                        >
+                          {s.estado}
+                        </span>
+
+                        {/* Select para cambiar el estado */}
+                        <select
+                          className="form-select form-select-sm fw-bold text-center"
+                          style={{
+                            border: "none",
+                          }}
+                          value={s.estado}
+                          onChange={(e) =>
+                            onCambiarEstado(s._id, e.target.value)
+                          }
+                        >
+                          {ESTADOS.map((estado) => (
+                            <option key={estado} value={estado}>
+                              {estado}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </td>
+                    <td>
+                      {s.recibidoEn
+                        ? new Date(s.recibidoEn).toLocaleString()
+                        : "-"}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ------------------------------------------------------
+// Componente principal de la página admin
+// ------------------------------------------------------
+function AdminPage() {
+  const [submissions, setSubmissions] = useState([]);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState("");
+  const [vista, setVista] = useState("loading"); // "loading" | "login" | "dashboard"
+  const [user, setUser] = useState(null);
+
+  // Función para pedir las submissions al backend
+  const cargarSubmissions = async () => {
+    setCargando(true);
+    setError("");
+
+    try {
+      const resp = await fetch(`${API_BASE}/api/admin/submissions`, {
+        credentials: "include", // 👈 manda la cookie con el JWT
+      });
+
+      if (resp.status === 401 || resp.status === 403) {
+        // No autenticado -> mostramos login
+        setVista("login");
+        setSubmissions([]);
+        return;
+      }
+
+      if (!resp.ok) {
+        const dataError = await resp.json().catch(() => ({}));
+        throw new Error(dataError.error || "No se pudo cargar la lista");
+      }
+
+      const data = await resp.json();
+      setSubmissions(data.items || []);
+      setVista("dashboard");
+    } catch (err) {
+      setError(err.message);
+      setSubmissions([]);
+    } finally {
+      setCargando(false);
+    }
+  };
+
+  // Al montar, intentamos cargar submissions.
+  useEffect(() => {
+    cargarSubmissions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Handler para cambio de estado
+  const handleCambioEstado = async (id, nuevoEstado) => {
+    try {
+      const resp = await fetch(
+        `${API_BASE}/api/admin/submissions/${id}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          body: JSON.stringify({ estado: nuevoEstado }),
+        }
+      );
+
+      if (!resp.ok) {
+        const dataError = await resp.json().catch(() => ({}));
+        throw new Error(dataError.error || "No se pudo actualizar el estado");
+      }
+
+      const data = await resp.json();
+
+      setSubmissions((prev) =>
+        prev.map((item) =>
+          item._id === data.item._id ? data.item : item
+        )
+      );
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  // Handler para LOGIN exitoso
+  const handleLoginSuccess = (userData) => {
+    setUser(userData);
+    // Después del login, pedimos la lista y cambiamos a dashboard
+    cargarSubmissions();
+  };
+
+  // Handler para LOGOUT
+  const handleLogout = async () => {
+    try {
+      await fetch(`${API_BASE}/api/auth/logout`, {
+        method: "POST",
+        credentials: "include",
+      });
+    } catch {
+      // Ignoramos error, igual limpiamos front
+    } finally {
+      setUser(null);
+      setSubmissions([]);
+      setVista("login");
+    }
+  };
+
+  // Vista "loading" inicial
+  if (vista === "loading") {
+    return (
+      <div className="container my-5 text-center">
+        <p>Cargando panel...</p>
+      </div>
+    );
+  }
+
+  // Vista login
+  if (vista === "login") {
+    return (
+      <AdminLoginForm
+        onLoginSuccess={handleLoginSuccess}
+        errorGlobal={error}
+      />
+    );
+  }
+
+  // Vista dashboard
+  return (
+    <AdminSubmissionsTable
+      submissions={submissions}
+      cargando={cargando}
+      error={error}
+      onCambiarEstado={handleCambioEstado}
+      onLogout={handleLogout}
+      recargar={cargarSubmissions}
+      user={user}
+    />
+  );
+}
+
+export default AdminPage;

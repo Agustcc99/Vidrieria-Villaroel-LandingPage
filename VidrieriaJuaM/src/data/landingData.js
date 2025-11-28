@@ -85,11 +85,11 @@ export const testimonials = [
   {
     name: 'Diego P., San Isidro',
     text: '“Respondieron mi consulta en minutos, midieron el mismo día y en dos dias estaba como nuevo.”',
-    rating: '',
+    rating: '5.0',
   },
   {
     name: 'Edificio Sofía',
     text: '“Gestionaron y cambiaron todo el frente en solo dos jornadas, con señalización y seguridad. Muy profesionales.”',
     rating: '5.0',
   },
-]
+] 

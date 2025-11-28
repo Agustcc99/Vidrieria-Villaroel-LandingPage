@@ -69,26 +69,31 @@ function Hero() {
                 Pedí tu presupuesto sin cargo
               </a>
 
-              {/* Badge de "Instalaciones disponibles esta semana" */}
+              {/* Badge de "Instalaciones disponibles" */}
               <div className="mini-badge">
-                <span className="dot"></span>
-                <span>Instalaciones disponibles esta semana</span>
+                <span  className="dot"></span>
+                <span style={{color: "white"}}>Instalaciones disponibles</span>
+                
               </div>
             </div>
 
             {/* Barra de logos "Elegidos por" */}
             <div className="brand-bar">
-              <span className="fw-semibold">Elegidos por</span>
-              {logos.map((logo, idx) => (
-                <img
-                  key={logo.alt + idx}
-                  src={logo.src}         // viene de src/data/landingData.js
-                  alt={logo.alt}
-                  className="brand-logo rounded"
-                  loading="lazy"
-                />
-              ))}
-            </div>
+  <span className="fw-semibold me-3">Elegidos por</span>
+
+  {logos.map((logo, idx) => (
+    <div key={idx} className="brand-item">
+      <img
+        src={logo.src}
+        alt={logo.alt}
+        className="brand-logo"
+        loading="lazy"
+      />
+      <small className="brand-caption">{logo.alt}</small>
+    </div>
+  ))}
+</div>
+
           </div>
         </div>
 

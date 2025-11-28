@@ -164,22 +164,28 @@
 }
 
 .brand-bar {
+  
   margin-top: 1.75rem;
   padding: 1.2rem 1.5rem;
   border-radius: 14px;
-  background: #0b1f33;
+  background: #2b76c2;
   color: #cfe0ff;
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 1rem;
   box-shadow: 0 10px 28px rgba(11, 31, 51, 0.18);
   flex-wrap: wrap;
 }
+.brand-item {
+  display: flex;
+  flex-direction: column;  /* TEXTO ABAJO */
+  align-items: center;
+  justify-content: center;
+}
 
 .brand-logo {
-  opacity: 0.72;
   filter: grayscale(100%);
+  opacity: 0.6;
   transition: opacity 0.2s ease, filter 0.2s ease;
   max-height: 32px;
 }
